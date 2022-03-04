@@ -10,17 +10,16 @@ import {BookRow} from './components/book-row'
 import {client} from 'utils/api-client'
 import {useEffect, useState} from 'react'
 import * as colors from './styles/colors'
+import {useAsync} from 'utils/hooks'
 
 function DiscoverBooksScreen() {
   // 🐨 add state for status ('idle', 'loading', or 'success'), data, and query
-  const [status, setStatus] = useState('idle')
-  const [data, setData] = useState([])
   const [query, setQuery] = useState('')
   // 🐨 you'll also notice that we don't want to run the search until the
   // user has submitted the form, so you'll need a boolean for that as well
   // 💰 I called it "queried"
   const [queried, setQueried] = useState(false)
-  const [error, setError] = useState('')
+  const {data, error, run, isLoading, isError, isSuccess} = useAsync()
 
   // 🐨 Add a useEffect callback here for making the request with the
   // client and updating the status and data.
@@ -31,25 +30,8 @@ function DiscoverBooksScreen() {
   useEffect(() => {
     if (!queried) return null
 
-    async function fetchData() {
-      setStatus('loading')
-      const response = await client(`books?query=${encodeURIComponent(query)}`)
-      if (response.status >= 400) {
-        setStatus('error')
-        setError(response)
-      } else {
-        setStatus('success')
-        setData(response)
-      }
-    }
-
-    fetchData()
-  }, [queried, query])
-
-  // 🐨 replace these with derived state values based on the status.
-  const isLoading = status === 'loading'
-  const isSuccess = status === 'success'
-  const isError = status === 'error'
+    run(client(`books?query=${encodeURIComponent(query)}`))
+  }, [queried, query, run])
 
   function handleSearchSubmit(event) {
     // 🐨 call preventDefault on the event so you don't get a full page reload
