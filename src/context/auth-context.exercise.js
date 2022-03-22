@@ -3,8 +3,10 @@ import {jsx} from '@emotion/core'
 
 import * as React from 'react'
 import * as auth from 'auth-provider'
+import {queryCache} from 'react-query'
 import {client} from 'utils/api-client'
 import {useAsync} from 'utils/hooks'
+import {setQueryDataForBook} from 'utils/books'
 import {FullPageSpinner, FullPageErrorFallback} from 'components/lib'
 
 async function getUser() {
@@ -22,6 +24,28 @@ async function getUser() {
 const AuthContext = React.createContext()
 AuthContext.displayName = 'AuthContext'
 
+// const userPromise = getUser()
+
+async function bootstrapAppData() {
+  let user = null
+
+  const token = await auth.getToken()
+  if (token) {
+    const data = await client('bootstrap', {token})
+    queryCache.setQueryData('list-items', data.listItems, {
+      staleTime: 5000,
+    })
+    // Let's also set the books in the query cache as well
+    for (const listItem of data.listItems) {
+      setQueryDataForBook(listItem.book)
+    }
+    user = data.user
+  }
+  return user
+}
+
+const appDataPromise = bootstrapAppData()
+
 function AuthProvider(props) {
   const {
     data: user,
@@ -36,15 +60,7 @@ function AuthProvider(props) {
   } = useAsync()
 
   React.useEffect(() => {
-    // we need to call getUser() sooner.
-    // 🐨 move the next line to just outside the AuthProvider
-    // 🦉 this means that as soon as this module is imported,
-    // it will start requesting the user's data so we don't
-    // have to wait until the app mounts before we kick off
-    // the request.
-    // We're moving from "Fetch on render" to "Render WHILE you fetch"!
-    const userPromise = getUser()
-    run(userPromise)
+    run(appDataPromise)
   }, [run])
 
   const login = React.useCallback(
@@ -60,12 +76,10 @@ function AuthProvider(props) {
     setData(null)
   }, [setData])
 
-  const value = React.useMemo(() => ({user, login, logout, register}), [
-    login,
-    logout,
-    register,
-    user,
-  ])
+  const value = React.useMemo(
+    () => ({user, login, logout, register}),
+    [login, logout, register, user],
+  )
 
   if (isLoading || isIdle) {
     return <FullPageSpinner />
